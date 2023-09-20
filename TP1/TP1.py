@@ -1,55 +1,85 @@
+from pathlib import Path
+from typing import Dict, List
+
 import cv2
-import numpy as np
 
-img_width = 1707
-img_height = 775
 
-reconstructed_image = np.zeros((img_height, img_width, 4), dtype=np.uint8)
-reconstructed_image.fill(255)
-print("reconstructed_image ", reconstructed_image.shape)
-with open("./assets/fragments.txt", "r") as frag_direction_file:
-    for line in frag_direction_file:
-        # print("-------------------")
-        line: str = line.strip()
-        parts: list[str] = line.split(" ")
+def read_file(file_path: Path) -> Dict[int, List[str]]:
+    """
+    Fonction qui lit un fichier et retourne un dictionnaire indexé par les indices de lignes.
+    :param file_path: Chemin du fichier à lire
+    :return: Dictionnaire indexé par les indices de lignes
+    """
+    table = {}
 
-        x: int = int(parts[1])
-        y: int = int(parts[2])
-        angle: float = float(parts[3])
-        # print("x " + str(x) + " y " + str(y) + " angle " + str(angle) + " index " + parts[0])
+    with open(file_path, "r") as file:
+        for line in file:
+            parts = line.strip().split()
+            if len(parts) > 0:
+                index = int(parts[0])
+                data = parts[1:]
+                table[index] = data
 
-        frag_location: str = "./assets/frag_eroded/frag_eroded_" + parts[0] + ".png"
-        fragment = cv2.imread(frag_location, cv2.IMREAD_UNCHANGED)
-        h = fragment.shape[0]
-        w = fragment.shape[1]
-        # height(nb rows), width(nb cols), channels <= .shape
-        x_pos = int(x)
-        y_pos = int(y)
+    return table
 
-        # print("fragment ", fragment.shape)
-        M = cv2.getRotationMatrix2D(center=(w // 2, h // 2), angle=angle, scale=1)
-        fragment = cv2.warpAffine(fragment, M, (w, h))
 
-        # print("x_pos " + str(x_pos) + ", y_pos " + str(y_pos))
+def get_fragment_size(f_index: int):
+    """
+    Fonction qui retourne la taille d'un fragment selon son index.
+    :param f_index: Index du fragment
+    :return: Taille du fragment
+    """
+    fragment_path = Path("assets/frag_eroded/frag_eroded_" + str(f_index) + ".png")
 
-        # pour éviter les pbs d'out of range, on prend la différence et pas juste // 2 de chaque côté
-        w_1 = w // 2
-        h_1 = h // 2
-        w_2 = w - w_1
-        h_2 = h - h_1
-        if x_pos - w_1 >= 0 \
-                and y_pos - h_1 >= 0 \
-                and x_pos + w_2 <= img_width \
-                and y_pos + h_2 <= img_height:
-            channels = cv2.split(fragment)
-            alpha_channel = channels[3]
-            alpha_mask = alpha_channel > 0  # on garde uniquement les pixels non à 0 sur le canal alpha
+    opencv_frag_fd = cv2.imread(str(fragment_path), cv2.IMREAD_UNCHANGED)
 
-            reconstructed_image[y_pos - h_1:y_pos + h_2, x_pos - w_1:x_pos + w_2][alpha_mask] = \
-                fragment[alpha_mask]
+    grayscale_image = cv2.cvtColor(opencv_frag_fd, cv2.COLOR_BGR2GRAY)
+
+    # Obtenir les coordonnées du rectangle englobant l'objet non transparent.
+    bbox = cv2.boundingRect(grayscale_image)
+
+    return bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+
+if __name__ == '__main__':
+    # On définit les constantes de tolérance
+    delta_x = 1
+    delta_y = 1
+    delta_alpha = 1
+
+    solution_file_path: Path = Path("assets/solution.txt")
+    fragments_file_path: Path = Path("assets/fragments.txt")
+
+    # On lit le fichier solutions.txt pour récupérer les valeurs construites puis les confronter aux valeurs réelles
+    solution_file_table = read_file(solution_file_path)
+    fragments_file_table = read_file(fragments_file_path)
+
+    correct_fragment_surface: float = .0
+    wrong_fragment_surface: float = .0
+
+    # Pour chaque index dans le fichier solution.txt, on vérifie si les valeurs sont les mêmes que dans le fichier
+    # fragments.txt selon la tolérance définie.
+    for fragment_index in solution_file_table:
+
+        # On compare les x, y, et alpha de chaque fragment par rapport à la solution
+        comparaison_x_pos = abs(
+            float(solution_file_table[fragment_index][0]) - float(fragments_file_table[fragment_index][0]))
+        comparaison_y_pos = abs(
+            float(solution_file_table[fragment_index][1]) - float(fragments_file_table[fragment_index][1]))
+        comparaison_alpha_pos = abs(
+            float(solution_file_table[fragment_index][2]) - float(fragments_file_table[fragment_index][2]))
+
+        # On récupère la taille du fragment
+        fragment_size = get_fragment_size(fragment_index)
+
+        # Et enfin, sa surface
+        fragment_surface = fragment_size[0] * fragment_size[1]
+
+        if comparaison_x_pos <= delta_x and comparaison_y_pos <= delta_y and comparaison_alpha_pos <= delta_alpha:
+            correct_fragment_surface += fragment_surface
         else:
-            print("out of range")
+            wrong_fragment_surface += fragment_surface
 
-cv2.imshow("image", reconstructed_image)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+    p: float = (correct_fragment_surface - wrong_fragment_surface) / (correct_fragment_surface + wrong_fragment_surface)
+
+    print(f"Le taux de précision est de {round(p * 100, 2)}%.")
