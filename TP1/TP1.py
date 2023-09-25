@@ -23,32 +23,23 @@ with open("./assets/fragments.txt", "r") as frag_direction_file:
         h = fragment.shape[0]
         w = fragment.shape[1]
         # height(nb rows), width(nb cols), channels <= .shape
-        x_pos = int(x)
-        y_pos = int(y)
+        # x_pos = int(x)
+        # y_pos = int(y)
 
         # print("fragment ", fragment.shape)
         M = cv2.getRotationMatrix2D(center=(w // 2, h // 2), angle=angle, scale=1)
         fragment = cv2.warpAffine(fragment, M, (w, h))
 
-        # print("x_pos " + str(x_pos) + ", y_pos " + str(y_pos))
+        x_pos = x - w // 2
+        y_pos = y - h // 2
 
-        # pour éviter les pbs d'out of range, on prend la différence et pas juste // 2 de chaque côté
-        w_1 = w // 2
-        h_1 = h // 2
-        w_2 = w - w_1
-        h_2 = h - h_1
-        if x_pos - w_1 >= 0 \
-                and y_pos - h_1 >= 0 \
-                and x_pos + w_2 <= img_width \
-                and y_pos + h_2 <= img_height:
-            channels = cv2.split(fragment)
-            alpha_channel = channels[3]
-            alpha_mask = alpha_channel > 0  # on garde uniquement les pixels non à 0 sur le canal alpha
+        for y_frag in range(h):
+            for x_frag in range(w):
+                alpha = fragment[y_frag, x_frag][3]
+                if alpha > 0:
+                    reconstructed_image[y_pos + y_frag, x_pos + x_frag, :3] = fragment[y_frag, x_frag][:3]
 
-            reconstructed_image[y_pos - h_1:y_pos + h_2, x_pos - w_1:x_pos + w_2][alpha_mask] = \
-                fragment[alpha_mask]
-        else:
-            print("out of range")
+
 
 cv2.imshow("image", reconstructed_image)
 cv2.waitKey(0)
