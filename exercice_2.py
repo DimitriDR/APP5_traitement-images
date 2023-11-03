@@ -3,17 +3,20 @@ import math
 import cv2
 import numpy as np
 
-# filename = 'four.png'
+filename = 'four.png'
 # filename = 'fourn.png'
 # filename = 'coins.png'
-filename = 'coins2.jpg'
+# filename = 'coins2.jpg'
 image_c = cv2.imread(filename)
 image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
-N = 8  # nombre de cercles à détecter
-# max_radius = 100  # en fonction de la taille de l'image et des pièces (en pixel)
-max_radius = 50
+N = 4  # nombre de cercles à détecter
+max_radius = int(np.sqrt(image.shape[0] ** 2 + image.shape[1] ** 2))  # la diagonale de l'image
+# print(max_radius)
+# max_radius = 100
 # blur_kernel = (5, 5)
 blur_kernel = (3, 3)
+
+# start = cv2.getTickCount()
 
 if image is None:
     print("L'image n'a pas pu être chargée.")
@@ -30,7 +33,7 @@ else:
     # cv2.waitKey(0)
     cv2.imwrite('gradient.png', gradient_magnitude)
 
-    t = 0.6 * np.max(gradient_magnitude)
+    t = 0.3 * np.max(gradient_magnitude)
     contour_pixels = [(x, y) for x, y in zip(*np.where(gradient_magnitude > t))]
     print(contour_pixels)
 
@@ -39,17 +42,30 @@ else:
 
     # 5
     i = 0
+    # Version présenté en cours
     for contour in contour_pixels:
         print("{}/{}".format(i, len(contour_pixels)))
         i += 1
         r, c = contour
-        for rad in range(5, max_radius):
-            for theta in range(360):
-                r2 = int(r - rad * math.cos(theta * math.pi / 180))
-                c2 = int(c - rad * math.sin(theta * math.pi / 180))
-                if 0 <= r2 < image.shape[0] and 0 <= c2 < image.shape[1]:
-                    acc[r2, c2, rad] += 1
-                    # acc[r2, c2, rad] += (1/rad)  # Tentative de normalisation => consseillé en classe mais pas ouf ici, trouver que des petits cercles / cercles non existant, à débug car est théoriquement mieux pour pas favorisé les grands cercles
+        for r2 in range(image.shape[0]):
+            for c2 in range(image.shape[1]):
+                rad = int(math.sqrt((r2 - r) ** 2 + (c2 - c) ** 2))
+                if 5 < rad < max_radius:
+                    # acc[r2, c2, rad] += 1
+                    acc[r2, c2, rad] += 1/rad
+
+    # Version inspiré de la vidéo suivante https://www.youtube.com/watch?v=Ltqt24SQQoI
+    # for contour in contour_pixels:
+    #     print("{}/{}".format(i, len(contour_pixels)))
+    #     i += 1
+    #     r, c = contour
+    #     for rad in range(5, max_radius):
+    #         for theta in range(360):
+    #             r2 = int(r - rad * math.cos(theta * math.pi / 180))
+    #             c2 = int(c - rad * math.sin(theta * math.pi / 180))
+    #             if 0 <= r2 < image.shape[0] and 0 <= c2 < image.shape[1]:
+    #                 acc[r2, c2, rad] += 1
+
     # print(acc)
     print("end of loop")
 
@@ -75,8 +91,12 @@ else:
         center = (circle[1][1], circle[1][0])
         radius = circle[1][2]
         value = circle[0]
-        cv2.circle(image_c, center, radius, (255, 255, 0), 1)
+        cv2.circle(image_c, center, 1, (0, 0, 255), 1)
+        cv2.circle(image_c, center, radius, (255, 255, 25), 1)
         print("Cercle détecté : centre = {}, rayon = {}, value {}".format(center, radius, value))
+
+    # end = cv2.getTickCount()
+    # print("Temps exec: {}s".format((end - start) / cv2.getTickFrequency()))
 
     # Affichez l'image avec les cercles détectés
     cv2.imshow('Cercles détectés', image_c)
