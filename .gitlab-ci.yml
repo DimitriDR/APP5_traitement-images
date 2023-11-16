@@ -1,0 +1,17 @@
+stages:
+  - linting
+  - formatting
+
+linting:
+  image: python:3.12
+  stage: linting
+  script:
+    - pip install pylint
+    - pylint --recursive=y --exit-zero
+
+formatting:
+  image: python:3.12
+  stage: formatting
+  script:
+    - pip install black
+    - black --check .
