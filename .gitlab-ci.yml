@@ -7,7 +7,7 @@ linting:
   stage: linting
   script:
     - pip install pylint
-    - pylint --recursive=y --exit-zero
+    - pylint --recursive=y --exit-zero .
 
 formatting:
   image: python:3.12
